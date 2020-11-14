@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 import Levenshtein
 import os
+import platform
 
 
 # class MyHTMLParser(HTMLParser):
@@ -73,15 +74,26 @@ def find_files(filename, search_path):
     return result
 
 
+def hots_root_directory():
+    system = platform.system()
+    if system == 'Windows':
+        relative_path = 'Documents/Heroes of the Storm'
+    elif system == 'Darwin':
+        relative_path = 'Library/Application Support/Blizzard/Heroes of the Storm/Accounts/'
+    else:
+        raise RuntimeError(f'Unsupported OS: {system}')
+    return Path.joinpath(Path.home(), relative_path)
+
+
 if __name__ == '__main__':
     hashes = {}
     with open('hashes.txt') as lines:
-        for line in lines.readlines():
+        for line in lines:
             data = line.split('=')
             hashes[data[0]] = data[1].strip()
-    names = list()
+    names = []
     with open('names.txt') as lines:
-        for line in lines.readlines():
+        for line in lines:
             names.append(list())
             data = line.split('/')
             for name in data:
@@ -121,11 +133,10 @@ if __name__ == '__main__':
         while len(builds) > 3:
             builds.pop()
         result.append('{}=Build{}|{}|{}|{}|{}'.format(name, amount, builds[0], builds[1], builds[2], hashes[name]))
-    windows = 'Documents/Heroes of the Storm'
-    mac = ''
-    for file in find_files('TalentBuilds.txt', Path.joinpath(Path.home(), windows)):
-        f = open(file, "w")
-        for line in result:
-            f.write(line)
-            f.write('\n')
-        f.close()
+
+    hots_root = hots_root_directory()
+    for file in find_files('TalentBuilds.txt', hots_root):
+        with open(file, "w") as f:
+            for line in result:
+                f.write(line)
+                f.write('\n')
