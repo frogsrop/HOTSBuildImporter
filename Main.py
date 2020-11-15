@@ -1,8 +1,4 @@
-import io
 from pathlib import Path
-# import requests
-# from html.parser import HTMLParser
-# from bs4 import BeautifulSoup
 import pandas as pd
 import Levenshtein
 import os
@@ -77,7 +73,7 @@ def find_files(filename, search_path):
 def hots_root_directory():
     system = platform.system()
     if system == 'Windows':
-        relative_path = 'Documents/Heroes of the Storm'
+        relative_path = 'Documents/Heroes of the Storm/Accounts/'
     elif system == 'Darwin':
         relative_path = 'Library/Application Support/Blizzard/Heroes of the Storm/Accounts/'
     else:
@@ -135,8 +131,9 @@ if __name__ == '__main__':
         result.append('{}=Build{}|{}|{}|{}|{}'.format(name, amount, builds[0], builds[1], builds[2], hashes[name]))
 
     hots_root = hots_root_directory()
-    for file in find_files('TalentBuilds.txt', hots_root):
-        with open(file, "w") as f:
+    for account in os.listdir(str(hots_root)):
+        path = Path.joinpath(hots_root, account + '/TalentBuilds.txt')
+        with open(str(path), "w") as f:
             for line in result:
                 f.write(line)
                 f.write('\n')
