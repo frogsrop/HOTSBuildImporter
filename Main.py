@@ -3,6 +3,7 @@ import pandas as pd
 import Levenshtein
 import os
 import platform
+import requests
 
 
 # class MyHTMLParser(HTMLParser):
@@ -61,6 +62,12 @@ import platform
 #     for name in names:
 #         getHeroInfo(name)
 
+def getData():
+    response = requests.get(
+        'https://docs.google.com/spreadsheet/ccc?key=1kiHfe0obByIt5qBvLNeVwrKr2SLl_laTCDqbfJwI9X8&output=csv')
+    assert response.status_code == 200, 'Wrong status code'
+    print(response.content)
+
 
 def find_files(filename, search_path):
     result = []
@@ -94,8 +101,8 @@ if __name__ == '__main__':
             data = line.split('/')
             for name in data:
                 names[-1].append(name.strip())
-
-    data = pd.read_csv('data.csv')
+    data = pd.read_csv(
+        'https://docs.google.com/spreadsheet/ccc?key=1kiHfe0obByIt5qBvLNeVwrKr2SLl_laTCDqbfJwI9X8&output=csv')
     cols = data.iloc[0] == "HotS Build Link"
     data = data.loc[:, cols]
     data.drop(0, inplace=True)
