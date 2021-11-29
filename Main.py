@@ -1,68 +1,12 @@
 from pathlib import Path
 import pandas as pd
-import Levenshtein
 import os
 import platform
 import requests
+from Levenshtein import ldistance
 
 
-# class MyHTMLParser(HTMLParser):
-#
-#     def handle_starttag(self, tag, attrs):
-#         if tag == 'table' and attrs['id'] == 'ctl00_MainContent_RadGridHeroTalentStatistics_ctl00':
-#             self.allow = True
-#         else:
-#             self.allow = False
-#
-#     def handle_endtag(self, tag):
-#         print("Encountered an end tag :", tag)
-#
-#     def handle_data(self, data):
-#         if (self.allow):
-#             print(data)
-#
-#
-# def executeInfo(tr):
-#     data = list(tr.children)
-#     return data[4].text, data[6].text
-#
-#
-# def getHeroInfo(name):
-#     url = 'https://www.hotslogs.com/Sitewide/HeroDetails'
-#     r = requests.get(url=url, params='Hero=' + name)
-#     soup = BeautifulSoup(r.content, features='lxml')
-#     tbody = soup.find('tbody')
-#     levels = list()
-#     for child in tbody.find_all('tr'):
-#         if child.get('class')[0] == "rgGroupHeader":
-#             levels.append(list())
-#             continue
-#         levels[-1].append(executeInfo(child))
-#     t = 1
-#     for level in levels:
-#         print(t)
-#         t += 1
-#         print(level)
-#     return levels
-#
-#
-# def getNames():
-#     url = 'https://www.hotslogs.com/Sitewide/HeroDetails'
-#     r = requests.get(url=url)
-#     soup = BeautifulSoup(r.content, features='lxml')
-#     heroesList = soup.find_all('ul', {'class': 'rddlList'})[1]
-#     names = list()
-#     for name in heroesList.find_all("li"):
-#         names.append(name.text)
-#     return names
-#
-#
-# def loadAllData():
-#     names = getNames()
-#     for name in names:
-#         getHeroInfo(name)
-
-def getData():
+def get_data():
     response = requests.get(
         'https://docs.google.com/spreadsheet/ccc?key=1kiHfe0obByIt5qBvLNeVwrKr2SLl_laTCDqbfJwI9X8&output=csv')
     assert response.status_code == 200, 'Wrong status code'
@@ -88,25 +32,26 @@ def hots_root_directory():
     return Path.joinpath(Path.home(), relative_path)
 
 
-if __name__ == '__main__':
-    hashes = {}
-    with open('hashes.txt') as lines:
-        for line in lines:
-            data = line.split('=')
-            hashes[data[0]] = data[1].strip()
+def get_heroes_names(path):
     names = []
-    with open('names.txt') as lines:
+    with open(path) as lines:
         for line in lines:
             names.append(list())
             data = line.split('/')
             for name in data:
                 names[-1].append(name.strip())
-    data = pd.read_csv(
-        'https://docs.google.com/spreadsheet/ccc?key=1kiHfe0obByIt5qBvLNeVwrKr2SLl_laTCDqbfJwI9X8&output=csv')
+    return names
+
+
+def get_builds(url):
+    data = pd.read_csv(url)
     cols = data.iloc[0] == "HotS Build Link"
     data = data.loc[:, cols]
     data.drop(0, inplace=True)
-    builds = list(data.stack().reset_index()[0])
+    return list(data.stack().reset_index()[0])
+
+
+def get_name_to_builds(builds, names):
     nameToBuild = {}
     for build in builds:
         info = build[2:-1].split(',')
@@ -120,27 +65,75 @@ if __name__ == '__main__':
         for hotsNames in names:
             dist = 100
             for hotsName in hotsNames:
-                dist = min(dist, Levenshtein.distance(hotsName, name))
+                dist = min(dist, ldistance(hotsName, name))
             if dist < bestScore:
                 bestScore = dist
                 bestName = hotsNames[0]
         if bestName not in nameToBuild:
             nameToBuild[bestName] = []
         nameToBuild[bestName].append(ready_build)
-    result = list()
-    for name in nameToBuild:
-        builds = nameToBuild[name]
-        amount = min(len(builds), 3)
-        while len(builds) < 3:
-            builds.append("\"\"")
-        while len(builds) > 3:
-            builds.pop()
-        result.append('{}=Build{}|{}|{}|{}|{}'.format(name, amount, builds[0], builds[1], builds[2], hashes[name]))
+    return nameToBuild
 
+
+def get_hashes(path):
+    hashes = {}
+    with open(path) as lines:
+        for line in lines:
+            data = line.split('=')
+            hashes[data[0]] = data[1].strip()
+    return hashes
+
+
+def get_current_hashes(path):
+    current_hashes = {}
+    with open(str(path), "r") as f:
+        lines = f.readlines()
+        for line in lines:
+            line = line.split('=')
+            name = line[0].strip()
+            hash = line[1].split('|')[-1].strip()
+            current_hashes[name] = hash
+    return current_hashes
+
+
+if __name__ == '__main__':
+    names = get_heroes_names('names.txt')
+    builds = get_builds(
+        'https://docs.google.com/spreadsheet/ccc?key=1kiHfe0obByIt5qBvLNeVwrKr2SLl_laTCDqbfJwI9X8&output=csv')
+    nameToBuild = get_name_to_builds(builds, names)
+    old_hashes = get_hashes('hashes.txt')
     hots_root = hots_root_directory()
+
+    new_hashes = None
+
     for account in os.listdir(str(hots_root)):
         path = Path.joinpath(hots_root, account + '/TalentBuilds.txt')
+        current_hashes = get_current_hashes(path)
+        if len(current_hashes) == len(old_hashes):
+            new_hashes = current_hashes.copy()
+
+        result = list()
+        for name in nameToBuild:
+            builds = nameToBuild[name]
+            amount = min(len(builds), 3)
+            while len(builds) < 3:
+                builds.append("\"\"")
+            while len(builds) > 3:
+                builds.pop()
+
+            hash = None
+            if name in current_hashes:
+                hash = current_hashes[name]
+            else:
+                hash = old_hashes[name]
+
+            result.append('{}=Build{}|{}|{}|{}|{}'.format(name, amount, builds[0], builds[1], builds[2], hash))
+
         with open(str(path), "w") as f:
             for line in result:
                 f.write(line)
                 f.write('\n')
+
+        # with open('hashes.txt', "w") as f:
+        #     for name, hash in new_hashes.items():
+        #         f.write(name + '=' + hash + '\n')
