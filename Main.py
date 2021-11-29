@@ -2,15 +2,7 @@ from pathlib import Path
 import pandas as pd
 import os
 import platform
-import requests
 from Levenshtein import ldistance
-
-
-def get_data():
-    response = requests.get(
-        'https://docs.google.com/spreadsheet/ccc?key=1kiHfe0obByIt5qBvLNeVwrKr2SLl_laTCDqbfJwI9X8&output=csv')
-    assert response.status_code == 200, 'Wrong status code'
-    print(response.content)
 
 
 def find_files(filename, search_path):
